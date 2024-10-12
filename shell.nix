@@ -25,16 +25,12 @@ let
     ];
   });
 
-  wine = pkgs.wineWowPackages.stable;
-
 in
 
 pkgs.mkShell rec {
   buildInputs = with pkgs; [
     rustup
     mingw_w64_cc
-    # Testing / running produced executables and for `winedump`.
-    wine
     # Easier toml file manipulations via `tomlq` for quick
     # experiments when needed.
     yq
@@ -42,23 +38,16 @@ pkgs.mkShell rec {
   # Avoid polluting home dir with local project stuff.
   RUSTUP_HOME = toString ./.rustup;
   CARGO_HOME = toString ./.cargo;
-  WINEPREFIX = toString ./.wine;
 
   RUSTUP_TOOLCHAIN = rustupToolchain;
 
   # Set windows as the default cargo target so that we don't
   # have use the `--target` argument on every `cargo` invocation.
   CARGO_BUILD_TARGET = rustBuildTargetTriple;
-  # Set wine as our cargo runner to allow the `run` and `test`
-  # command to work.
-  CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER = "${wine}/bin/wine64";
 
   shellHook = ''
     export PATH=$PATH:${CARGO_HOME}/bin
     export PATH=$PATH:${RUSTUP_HOME}/toolchains/${rustupToolchain}-${rustBuildHostTriple}/bin/
-
-    # Suppress all windows debug output.
-    export WINEDEBUG=-all
 
     # Ensures our windows target is added via rustup.
     rustup target add "${rustBuildTargetTriple}"
