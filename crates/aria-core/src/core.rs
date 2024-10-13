@@ -15,10 +15,17 @@ pub fn start() {
                 })
                 .unwrap();
 
-            let driver = WindowsDriver::new();
-
             log::info!("Starting Aria Windows driver.");
-            driver.start();
+            WindowsDriver::start();
+        }
+        _ => println!("This program is only supported on Windows."),
+    }
+}
+
+pub fn stop() {
+    match env::consts::OS {
+        "windows" => {
+            WindowsDriver::stop();
         }
         _ => println!("This program is only supported on Windows."),
     }

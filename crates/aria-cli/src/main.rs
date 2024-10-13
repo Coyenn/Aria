@@ -1,4 +1,5 @@
 use aria_core::core::start as start_aria;
+use aria_core::core::stop as stop_aria;
 use clap::Parser;
 
 /// CLI usage for Aria.
@@ -29,4 +30,6 @@ fn main() {
     std::io::stdin()
         .read_line(&mut input)
         .expect("Failed to read line.");
+
+    stop_aria();
 }

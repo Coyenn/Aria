@@ -1,18 +1,44 @@
+use std::sync::Mutex;
+use std::thread;
+
 use aria_tts::tts::say;
 use mki::{Action, Keyboard};
 use uiautomation::core::UIAutomation;
 use uiautomation::events::{CustomFocusChangedEventHandler, UIFocusChangedEventHandler};
-use uiautomation::types::UIProperty;
+use uiautomation::UIElement;
+use winapi::shared::windef::RECT;
 
-struct FocusChangedEventHandler {}
+use crate::graphics::draw_focus_rectangle;
+
+struct FocusChangedEventHandler {
+    previous_element: Mutex<Option<UIElement>>,
+}
 
 impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
     fn handle(&self, sender: &uiautomation::UIElement) -> uiautomation::Result<()> {
-        let name = sender
-            .get_property_value(UIProperty::Name)
-            .unwrap()
-            .get_string()
-            .unwrap();
+        let mut previous = self.previous_element.lock().unwrap();
+
+        // Check if the new element is the same as the previous one
+        if let Some(prev_elem) = previous.as_ref() {
+            if prev_elem.get_runtime_id()? == sender.get_runtime_id()? {
+                // Same element, do nothing
+                return Ok(());
+            }
+        }
+
+        // Update the previous element
+        *previous = Some(sender.clone());
+
+        // Proceed with handling the new focus
+        let name = sender.get_name().unwrap();
+        let bounding_rectangle = sender.get_bounding_rectangle().unwrap();
+
+        draw_focus_rectangle(&RECT {
+            left: bounding_rectangle.get_left(),
+            top: bounding_rectangle.get_top(),
+            right: bounding_rectangle.get_right(),
+            bottom: bounding_rectangle.get_bottom(),
+        });
 
         log::info!("Focus changed to: {}", name);
 
@@ -20,6 +46,7 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
             log::error!("TTS failed on focus change: {:?}", e);
             Err(e)
         })?;
+
         Ok(())
     }
 }
@@ -38,13 +65,11 @@ fn on_keypress(key_name: String) {
 pub struct WindowsDriver {}
 
 impl WindowsDriver {
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn start(&self) {
+    pub fn start() {
         let automation = UIAutomation::new().unwrap();
-        let focus_changed_handler = FocusChangedEventHandler {};
+        let focus_changed_handler = FocusChangedEventHandler {
+            previous_element: Mutex::new(None),
+        };
         let focus_changed_handler = UIFocusChangedEventHandler::from(focus_changed_handler);
 
         // Listen for focus changes, e.g. when a window or control is focused.
@@ -62,5 +87,11 @@ impl WindowsDriver {
                 on_keypress(format!("{:?}", key));
             }
         }));
+    }
+
+    pub fn stop() {
+        say("Aria shutting down.").unwrap();
+        log::info!("Stopping Windows driver.");
+        thread::sleep(std::time::Duration::from_secs(1));
     }
 }
