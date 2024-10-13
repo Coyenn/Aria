@@ -51,6 +51,8 @@ pkgs.mkShell rec {
 
     # Ensures our windows target is added via rustup.
     rustup target add "${rustBuildTargetTriple}"
+    # Add rustfmt
+    rustup component add rustfmt
     '';
   RUSTFLAGS = (builtins.map (a: ''-L ${a}/lib'') [
     mingw_w64

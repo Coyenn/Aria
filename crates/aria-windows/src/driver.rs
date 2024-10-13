@@ -1,5 +1,4 @@
 use aria_tts::tts::say;
-use aria_utils::config::AriaConfig;
 use mki::{Action, Keyboard};
 use uiautomation::core::UIAutomation;
 use uiautomation::events::{CustomFocusChangedEventHandler, UIFocusChangedEventHandler};

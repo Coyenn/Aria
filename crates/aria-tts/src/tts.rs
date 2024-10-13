@@ -12,13 +12,9 @@ use windows::{
 
 static PLAYER: Lazy<Mutex<MediaPlayer>> = Lazy::new(|| Mutex::new(MediaPlayer::new().unwrap()));
 
-pub fn say(text: &str) -> windows::core::Result<()> {
-    log::info!("Saying: {}", text);
-
-    let synthesizer = SpeechSynthesizer::new()?;
+pub fn apply_config(synthesizer: &SpeechSynthesizer) -> windows::core::Result<()> {
     let synthesizer_options = synthesizer.Options()?;
     let config = get_config().unwrap();
-    let text = text.to_string();
 
     synthesizer_options.SetSpeakingRate(config.speech_rate)?;
     synthesizer_options.SetAppendedSilence(if config.append_silence {
@@ -31,6 +27,17 @@ pub fn say(text: &str) -> windows::core::Result<()> {
     } else {
         SpeechPunctuationSilence::Min
     })?;
+
+    Ok(())
+}
+
+pub fn say(text: &str) -> windows::core::Result<()> {
+    log::info!("Saying: {}", text);
+
+    let synthesizer = SpeechSynthesizer::new()?;
+    let text = text.to_string();
+
+    apply_config(&synthesizer)?;
 
     let stream = synthesizer
         .SynthesizeTextToStreamAsync(&HSTRING::from(text))?
