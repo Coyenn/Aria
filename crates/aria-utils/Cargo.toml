@@ -1,0 +1,10 @@
+[package]
+name = "aria-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+config = "0.14.0"
+serde = { version = "1.0.210", features = ["derive"] }
+dirs = "5.0.1"
+toml = "0.8.19"

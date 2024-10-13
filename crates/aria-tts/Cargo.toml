@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+aria-utils = { path = "../aria-utils" }
 windows = { version = "0.58.0", features = [
   "Media",
   "Media_Core",
