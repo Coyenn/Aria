@@ -1,0 +1,10 @@
+[package]
+name = "aria-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ctrlc = "3.4.5"
+clap = { version = "4.5.20", features = ["derive"] }
+
+aria-core = { path = "../aria-core" }

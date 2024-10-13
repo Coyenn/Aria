@@ -1,7 +1,17 @@
-[package]
-name = "aria"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+  "crates/aria-cli",
+  "crates/aria-core",
+  "crates/aria-tts",
+  "crates/aria-windows",
+]
+resolver = "2"
 
-[dependencies]
-uiautomation = "0.12.4"
+# default to small, optimized workspace release binaries
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+incremental = false
+opt-level = "s"
+strip = true

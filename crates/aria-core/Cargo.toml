@@ -1,0 +1,10 @@
+[package]
+name = "aria-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# OS specific drivers
+log = "0.4.22"
+simple_logger = "5.0.0"
+aria-windows = { path = "../aria-windows" }

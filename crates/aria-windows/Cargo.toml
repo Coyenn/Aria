@@ -1,0 +1,12 @@
+[package]
+name = "aria-windows"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uiautomation = "0.12.4"
+winapi = { version = "0.3.9", features = ["winuser"] }
+aria-tts = { path = "../aria-tts" }
+tokio = { version = "1.40.0", features = ["full"] }
+log = "0.4.22"
+mki = "0.2.3"
