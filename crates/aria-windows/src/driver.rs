@@ -6,9 +6,6 @@ use mki::{Action, Keyboard};
 use uiautomation::core::UIAutomation;
 use uiautomation::events::{CustomFocusChangedEventHandler, UIFocusChangedEventHandler};
 use uiautomation::UIElement;
-use winapi::shared::windef::RECT;
-
-use crate::graphics::draw_focus_rectangle;
 
 struct FocusChangedEventHandler {
     previous_element: Mutex<Option<UIElement>>,
@@ -31,18 +28,27 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
 
         // Proceed with handling the new focus
         let name = sender.get_name().unwrap();
-        let bounding_rectangle = sender.get_bounding_rectangle().unwrap();
-
-        draw_focus_rectangle(&RECT {
-            left: bounding_rectangle.get_left(),
-            top: bounding_rectangle.get_top(),
-            right: bounding_rectangle.get_right(),
-            bottom: bounding_rectangle.get_bottom(),
-        });
+        let content = sender.get_help_text().unwrap();
+        let control_type: String = sender.get_control_type().unwrap().to_string();
 
         log::info!("Focus changed to: {}", name);
 
-        say(&name).or_else(|e| {
+        let info_string = format!(
+            "{}{}{}",
+            name,
+            if !content.is_empty() {
+                format!(", {}", content)
+            } else {
+                String::new()
+            },
+            if !control_type.is_empty() {
+                format!(", {}", control_type)
+            } else {
+                String::new()
+            }
+        );
+
+        say(&info_string).or_else(|e| {
             log::error!("TTS failed on focus change: {:?}", e);
             Err(e)
         })?;
