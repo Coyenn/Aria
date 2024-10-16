@@ -1,9 +1,9 @@
 use aria_utils::config::get_config;
 use once_cell::sync::Lazy;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use windows::{
     core::HSTRING,
-    Foundation::TypedEventHandler,
+    Foundation::{EventRegistrationToken, TypedEventHandler},
     Media::{
         Core::MediaSource,
         Playback::MediaPlayer,
@@ -39,15 +39,12 @@ pub fn apply_config(synthesizer: &SpeechSynthesizer) -> windows::core::Result<Sp
 
 pub fn say(text: &str) {
     let text = text.to_string();
+    let (tx, rx) = mpsc::channel();
+
+    stop_all_tts_players();
 
     std::thread::spawn(move || {
         log::info!("{}", text);
-
-        let mut active_async_players = ACTIVE_ASYNC_PLAYERS.lock().unwrap();
-
-        if active_async_players.len() > 1 {
-            return;
-        }
 
         let stream = SYNTHESIZER
             .SynthesizeTextToStreamAsync(&HSTRING::from(text))
@@ -59,30 +56,40 @@ pub fn say(text: &str) {
                 .unwrap();
         let player = Arc::new(Mutex::new(MediaPlayer::new().unwrap()));
 
-        // Clone the Arc for the event handler
-        let player_clone = Arc::clone(&player);
+        player.lock().unwrap().SetSource(&media_source).unwrap();
 
-        // Set up the MediaEnded event handler
-        player
+        ACTIVE_ASYNC_PLAYERS
             .lock()
             .unwrap()
-            .MediaEnded(&TypedEventHandler::new(move |_, _| {
-                let mut active_async_players = ACTIVE_ASYNC_PLAYERS.lock().unwrap();
-                active_async_players.retain(|p| !Arc::ptr_eq(p, &player_clone));
-                Ok(())
-            }))
-            .unwrap();
+            .push(Arc::clone(&player));
 
-        player.lock().unwrap().Pause().unwrap();
-        player.lock().unwrap().SetSource(&media_source).unwrap();
+        let player_clone = Arc::clone(&player);
+        let tx_clone = tx.clone();
+        let token: Option<EventRegistrationToken> = Some(
+            player
+                .lock()
+                .unwrap()
+                .MediaEnded(&TypedEventHandler::new(move |_, _| {
+                    let mut active_async_players = ACTIVE_ASYNC_PLAYERS.lock().unwrap();
+                    active_async_players.retain(|p| !Arc::ptr_eq(p, &player_clone));
+                    tx_clone.send(()).unwrap();
+                    Ok(())
+                }))
+                .unwrap(),
+        );
+
         player.lock().unwrap().Play().unwrap();
 
-        // Add player to active async players
-        active_async_players.push(player.clone());
+        // Wait for the media to finish playing
+        rx.recv().unwrap();
 
-        // Stop sync player if it's playing
-        SYNC_PLAYER.lock().unwrap().Pause().unwrap();
-    });
+        // Unregister the event handler
+        if let Some(t) = token {
+            player.lock().unwrap().RemoveMediaEnded(t).unwrap();
+        }
+    })
+    .join()
+    .unwrap();
 }
 
 pub fn say_sync(text: &str) -> windows::core::Result<()> {
@@ -109,4 +116,16 @@ pub fn say_sync(text: &str) -> windows::core::Result<()> {
     player.Play()?;
 
     Ok(())
+}
+
+pub fn stop_all_tts_players() {
+    let sync_player = SYNC_PLAYER.lock().unwrap();
+    let mut active_async_players = ACTIVE_ASYNC_PLAYERS.lock().unwrap();
+
+    for player in active_async_players.iter() {
+        player.lock().unwrap().Close().unwrap();
+    }
+
+    sync_player.Pause().unwrap();
+    active_async_players.clear();
 }
