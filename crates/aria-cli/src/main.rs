@@ -7,7 +7,7 @@ use clap::Parser;
 #[command(version, about, long_about = None)]
 struct Args {
     #[clap(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 /// CLI subcommands for Aria.
@@ -21,7 +21,8 @@ fn main() {
     let args = Args::parse();
 
     match args.command {
-        Command::Start => start_aria(),
+        Some(Command::Start) => start_aria(),
+        _ => start_aria(),
     }
 
     // Wait for user input to exit, due to the keylogger, only Enter, LeftControl, and C can be used.

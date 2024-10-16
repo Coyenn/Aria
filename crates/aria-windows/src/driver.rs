@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 use std::thread;
 
-use aria_tts::tts::say;
+use aria_tts::tts::{say, say_sync};
 use mki::{Action, Keyboard};
 use uiautomation::core::UIAutomation;
 use uiautomation::events::{CustomFocusChangedEventHandler, UIFocusChangedEventHandler};
@@ -27,15 +27,24 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
         *previous = Some(sender.clone());
 
         // Proceed with handling the new focus
-        let name = sender.get_name().unwrap();
-        let content = sender.get_help_text().unwrap();
-        let control_type: String = sender.get_control_type().unwrap().to_string();
+        let name = sender.get_name().unwrap().trim().to_string();
+        let content = sender.get_help_text().unwrap().trim().to_string();
+        let control_type: String = sender
+            .get_localized_control_type()
+            .unwrap()
+            .to_string()
+            .trim()
+            .to_string();
 
         log::info!("Focus changed to: {}", name);
 
         let info_string = format!(
             "{}{}{}",
-            name,
+            if !name.is_empty() {
+                format!("{}", name)
+            } else {
+                String::new()
+            },
             if !content.is_empty() {
                 format!(", {}", content)
             } else {
@@ -48,7 +57,7 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
             }
         );
 
-        say(&info_string).or_else(|e| {
+        say_sync(&info_string).or_else(|e| {
             log::error!("TTS failed on focus change: {:?}", e);
             Err(e)
         })?;
@@ -60,12 +69,7 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
 fn on_keypress(key_name: String) {
     log::info!("Key pressed: {}", key_name);
 
-    say(&key_name.clone())
-        .or_else(|e| {
-            log::error!("TTS failed on keypress: {:?}", e);
-            Err(e)
-        })
-        .unwrap();
+    say(&key_name.clone());
 }
 
 pub struct WindowsDriver {}
@@ -96,7 +100,7 @@ impl WindowsDriver {
     }
 
     pub fn stop() {
-        say("Aria shutting down.").unwrap();
+        say_sync("Aria shutting down.").unwrap();
         log::info!("Stopping Windows driver.");
         thread::sleep(std::time::Duration::from_secs(1));
     }
