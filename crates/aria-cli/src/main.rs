@@ -1,6 +1,7 @@
-use aria_core::core::start as start_aria;
-use aria_core::core::stop as stop_aria;
+use aria_core::driver::WindowsDriver;
+use aria_utils::config::get_config;
 use clap::Parser;
+use log::Level;
 
 /// CLI usage for Aria.
 #[derive(Parser, Debug)]
@@ -20,6 +21,8 @@ enum Command {
 fn main() {
     let args = Args::parse();
 
+    simple_logger::init_with_level(Level::Info).unwrap();
+
     match args.command {
         Some(Command::Start) => start_aria(),
         _ => start_aria(),
@@ -33,4 +36,20 @@ fn main() {
         .expect("Failed to read line.");
 
     stop_aria();
+}
+
+pub fn start_aria() {
+    get_config()
+        .or_else(|e| {
+            log::error!("Failed to load config: {:?}", e);
+            Err(e)
+        })
+        .unwrap();
+
+    log::info!("Starting Aria Windows driver.");
+    WindowsDriver::start(false);
+}
+
+pub fn stop_aria() {
+    WindowsDriver::stop();
 }

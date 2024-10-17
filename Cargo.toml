@@ -1,9 +1,9 @@
 [workspace]
 members = [
   "crates/aria-cli",
+  "crates/aria-tts",
+  "crates/aria-utils",
   "crates/aria-core",
-  "crates/aria-tts", "crates/aria-utils",
-  "crates/aria-windows",
 ]
 resolver = "2"
 

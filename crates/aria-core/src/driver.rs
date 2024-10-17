@@ -10,6 +10,7 @@ use uiautomation::core::UIAutomation;
 use uiautomation::events::{CustomFocusChangedEventHandler, UIFocusChangedEventHandler};
 use uiautomation::UIElement;
 
+use crate::overlay::start_overlay;
 use crate::sound::{play_sound, INPUT_FOCUSSED_SOUND, SHUTDOWN_SOUND, STARTUP_SOUND};
 
 struct FocusChangedEventHandler {
@@ -95,7 +96,7 @@ fn on_keypress(key_name: String) {
 pub struct WindowsDriver {}
 
 impl WindowsDriver {
-    pub fn start() {
+    pub fn start(with_graphics: bool) {
         let config = get_config().unwrap();
         let automation = UIAutomation::new().unwrap();
         let focus_changed_handler = FocusChangedEventHandler {
@@ -106,6 +107,12 @@ impl WindowsDriver {
         if config.startup_shutdown_sounds {
             play_sound(STARTUP_SOUND);
             std::thread::sleep(std::time::Duration::from_secs(3));
+            say("Welcome to Aria.").unwrap();
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+
+        if with_graphics {
+            start_overlay().unwrap();
         }
 
         // Listen for focus changes, e.g. when a window or control is focused.
