@@ -47,7 +47,7 @@ pub fn start_aria() {
         .unwrap();
 
     log::info!("Starting Aria Windows driver.");
-    WindowsDriver::start(false);
+    WindowsDriver::start();
 }
 
 pub fn stop_aria() {

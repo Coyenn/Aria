@@ -186,6 +186,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "aria"
+version = "0.1.0"
+dependencies = [
+ "aria-core",
+ "aria-utils",
+ "iced",
+ "log",
+ "simple_logger",
+]
+
+[[package]]
 name = "aria-cli"
 version = "0.1.0"
 dependencies = [
@@ -203,7 +214,6 @@ version = "0.1.0"
 dependencies = [
  "aria-tts",
  "aria-utils",
- "iced",
  "log",
  "mki",
  "once_cell",

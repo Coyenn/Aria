@@ -4,20 +4,20 @@ use iced::window;
 use iced::{Center, Element, Fill, Subscription, Task};
 
 #[derive(Debug, Default)]
-struct Events {
+pub struct Events {
     last: Vec<Event>,
     enabled: bool,
 }
 
 #[derive(Debug, Clone)]
-enum Message {
+pub enum Message {
     EventOccurred(Event),
     Toggled(bool),
     Exit,
 }
 
 impl Events {
-    fn update(&mut self, message: Message) -> Task<Message> {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::EventOccurred(event) if self.enabled => {
                 self.last.push(event);
@@ -44,11 +44,11 @@ impl Events {
         }
     }
 
-    fn subscription(&self) -> Subscription<Message> {
+    pub fn subscription(&self) -> Subscription<Message> {
         event::listen().map(Message::EventOccurred)
     }
 
-    fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<Message> {
         let events = Column::with_children(
             self.last
                 .iter()
@@ -72,11 +72,4 @@ impl Events {
 
         center(content).into()
     }
-}
-
-pub fn start_overlay() -> Result<(), iced::Error> {
-    return iced::application("Events - Iced", Events::update, Events::view)
-        .subscription(Events::subscription)
-        .exit_on_close_request(false)
-        .run();
 }
