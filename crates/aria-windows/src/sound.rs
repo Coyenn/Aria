@@ -3,6 +3,7 @@ use std::io::Cursor;
 
 pub const STARTUP_SOUND: &[u8] = include_bytes!("../assets/sounds/startup.mp3");
 pub const SHUTDOWN_SOUND: &[u8] = include_bytes!("../assets/sounds/shutdown.mp3");
+pub const INPUT_FOCUSSED_SOUND: &[u8] = include_bytes!("../assets/sounds/input-focussed.mp3");
 
 pub fn play_sound(sound: &[u8]) {
     let sound_copy = sound.to_vec();

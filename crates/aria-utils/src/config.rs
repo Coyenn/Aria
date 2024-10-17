@@ -9,6 +9,7 @@ pub struct AriaConfig {
     pub pitch: f64,
     pub append_silence: bool,
     pub punctuation_silence: bool,
+    pub startup_shutdown_sounds: bool,
 }
 
 impl Default for AriaConfig {
@@ -18,6 +19,7 @@ impl Default for AriaConfig {
             pitch: 1.0,
             append_silence: true,
             punctuation_silence: true,
+            startup_shutdown_sounds: true,
         }
     }
 }
@@ -61,6 +63,10 @@ pub fn get_config() -> Result<AriaConfig, ConfigError> {
         .set_default(
             "punctuation_silence",
             AriaConfig::default().punctuation_silence,
+        )?
+        .set_default(
+            "startup_shutdown_sounds",
+            AriaConfig::default().startup_shutdown_sounds,
         )?
         .build()
         .unwrap();

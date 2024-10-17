@@ -1,7 +1,8 @@
 use std::sync::Mutex;
 use std::thread;
 
-use aria_tts::tts::{say, say_sync, stop_all_tts_players};
+use aria_tts::tts::{destroy_tts, say, stop_tts};
+use aria_utils::config::get_config;
 use mki::{Action, Keyboard};
 use once_cell::sync::Lazy;
 use uiautomation::controls::ControlType;
@@ -9,7 +10,7 @@ use uiautomation::core::UIAutomation;
 use uiautomation::events::{CustomFocusChangedEventHandler, UIFocusChangedEventHandler};
 use uiautomation::UIElement;
 
-use crate::sound::{play_sound, SHUTDOWN_SOUND, STARTUP_SOUND};
+use crate::sound::{play_sound, INPUT_FOCUSSED_SOUND, SHUTDOWN_SOUND, STARTUP_SOUND};
 
 struct FocusChangedEventHandler {
     previous_element: Mutex<Option<UIElement>>,
@@ -35,38 +36,40 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
         // Proceed with handling the new focus
         let name = sender.get_name().unwrap().trim().to_string();
         let content = sender.get_help_text().unwrap().trim().to_string();
-        let control_type: String = sender
+        let control_type_name: String = sender
             .get_localized_control_type()
             .unwrap()
             .to_string()
             .trim()
             .to_string();
+        let control_type = sender.get_control_type().unwrap();
 
         log::info!("Focus changed to: {}", name);
 
-        *IS_FOCUSSED_ON_INPUT.lock().unwrap() =
-            sender.get_control_type().unwrap() == ControlType::Edit;
+        if control_type == ControlType::Edit || control_type == ControlType::ComboBox {
+            play_sound(INPUT_FOCUSSED_SOUND);
 
-        let info_string = format!(
-            "{}{}{}",
-            if !name.is_empty() {
-                format!("{}", name)
-            } else {
-                String::new()
-            },
-            if !content.is_empty() {
-                format!(", {}", content)
-            } else {
-                String::new()
-            },
-            if !control_type.is_empty() {
-                format!(", {}", control_type)
-            } else {
-                String::new()
-            }
-        );
+            *IS_FOCUSSED_ON_INPUT.lock().unwrap() = true;
+        } else {
+            *IS_FOCUSSED_ON_INPUT.lock().unwrap() = false;
+        }
 
-        say_sync(&info_string).or_else(|e| {
+        let mut parts = Vec::new();
+
+        if !name.is_empty() {
+            parts.push(name);
+        }
+        if !content.is_empty() {
+            parts.push(content);
+        }
+        if !control_type_name.is_empty() {
+            parts.push(control_type_name);
+        }
+
+        let info_string = parts.join(", ");
+
+        stop_tts().unwrap();
+        say(&info_string).or_else(|e| {
             log::error!("TTS failed on focus change: {:?}", e);
             Err(e)
         })?;
@@ -79,7 +82,13 @@ fn on_keypress(key_name: String) {
     log::info!("Key pressed: {}", key_name);
 
     if IS_FOCUSSED_ON_INPUT.lock().unwrap().clone() {
-        say(&key_name.clone());
+        stop_tts().unwrap();
+        say(&key_name.clone())
+            .or_else(|e| {
+                log::error!("TTS failed on keypress: {:?}", e);
+                Err(e)
+            })
+            .unwrap();
     }
 }
 
@@ -87,14 +96,17 @@ pub struct WindowsDriver {}
 
 impl WindowsDriver {
     pub fn start() {
+        let config = get_config().unwrap();
         let automation = UIAutomation::new().unwrap();
         let focus_changed_handler = FocusChangedEventHandler {
             previous_element: Mutex::new(None),
         };
         let focus_changed_handler = UIFocusChangedEventHandler::from(focus_changed_handler);
 
-        play_sound(STARTUP_SOUND);
-        std::thread::sleep(std::time::Duration::from_secs(3));
+        if config.startup_shutdown_sounds {
+            play_sound(STARTUP_SOUND);
+            std::thread::sleep(std::time::Duration::from_secs(3));
+        }
 
         // Listen for focus changes, e.g. when a window or control is focused.
         log::info!("Listening for focus changes.");
@@ -109,7 +121,7 @@ impl WindowsDriver {
 
             if !matches!(key, Enter | LeftControl | C) {
                 match key {
-                    Escape => stop_all_tts_players(),
+                    Escape => stop_tts().unwrap(),
                     _ => on_keypress(format!("{:?}", key)),
                 }
             }
@@ -117,14 +129,18 @@ impl WindowsDriver {
     }
 
     pub fn stop() {
+        let config = get_config().unwrap();
+
         log::info!("Stopping Windows driver.");
 
-        stop_all_tts_players();
-
-        say_sync("Aria shutting down.").unwrap();
+        stop_tts().unwrap();
+        say("Aria shutting down.").unwrap();
         thread::sleep(std::time::Duration::from_secs(1));
+        destroy_tts().expect("Failed to destroy TTS. This may cause a memory leak.");
 
-        play_sound(SHUTDOWN_SOUND);
-        thread::sleep(std::time::Duration::from_secs(2));
+        if config.startup_shutdown_sounds {
+            play_sound(SHUTDOWN_SOUND);
+            thread::sleep(std::time::Duration::from_secs(2));
+        }
     }
 }
