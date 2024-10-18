@@ -1,10 +1,12 @@
-use iced::event::{self, Event};
-use iced::widget::{button, center, checkbox, text, Column};
-use iced::window;
-use iced::{Center, Element, Fill, Subscription, Task};
+use aria_core::driver::WindowsDriver;
+use iced::event::{self};
+use iced::theme::Palette;
+use iced::widget::{center, Column};
+use iced::{window, Color, Event, Theme};
+use iced::{Center, Element, Subscription, Task};
 
 #[derive(Debug, Default)]
-pub struct Events {
+pub struct Overlay {
     last: Vec<Event>,
     enabled: bool,
 }
@@ -16,7 +18,12 @@ pub enum Message {
     Exit,
 }
 
-impl Events {
+impl Overlay {
+    pub fn new() -> (Self, Task<Message>) {
+        let task = window::get_latest().and_then(|id| window::maximize(id, false));
+        (Self::default(), task)
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::EventOccurred(event) if self.enabled => {
@@ -40,7 +47,11 @@ impl Events {
 
                 Task::none()
             }
-            Message::Exit => window::get_latest().and_then(window::close),
+            Message::Exit => {
+                WindowsDriver::stop();
+
+                return window::get_latest().and_then(window::close);
+            }
         }
     }
 
@@ -49,27 +60,18 @@ impl Events {
     }
 
     pub fn view(&self) -> Element<Message> {
-        let events = Column::with_children(
-            self.last
-                .iter()
-                .map(|event| text!("{event:?}").size(40))
-                .map(Element::from),
-        );
-
-        let toggle = checkbox("Listen to runtime events", self.enabled).on_toggle(Message::Toggled);
-
-        let exit = button(text("Exit").width(Fill).align_x(Center))
-            .width(100)
-            .padding(10)
-            .on_press(Message::Exit);
-
-        let content = Column::new()
-            .align_x(Center)
-            .spacing(20)
-            .push(events)
-            .push(toggle)
-            .push(exit);
+        let content = Column::new().align_x(Center);
 
         center(content).into()
+    }
+
+    pub fn theme(&self) -> Theme {
+        Theme::custom(
+            "main".to_string(),
+            Palette {
+                background: Color::TRANSPARENT,
+                ..Theme::default().palette()
+            },
+        )
     }
 }

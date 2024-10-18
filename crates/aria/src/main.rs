@@ -1,8 +1,12 @@
 use std::thread;
 
-use aria::overlay::Events;
+use aria::overlay::Overlay;
 use aria_core::driver::WindowsDriver;
 use aria_utils::config::get_config;
+use iced::{
+    window::{self, settings::PlatformSpecific, Settings as IcedWindowSettings},
+    Settings as IcedSettings,
+};
 use log::Level;
 
 fn main() {
@@ -16,10 +20,32 @@ fn main() {
         }
     });
 
-    iced::application("Aria", Events::update, Events::view)
-        .subscription(Events::subscription)
-        .exit_on_close_request(false)
-        .run()
+    let window_settings = IcedWindowSettings {
+        exit_on_close_request: false,
+        level: window::Level::AlwaysOnTop,
+        decorations: false,
+        resizable: false,
+        transparent: true,
+        platform_specific: PlatformSpecific {
+            drag_and_drop: false,
+            skip_taskbar: true,
+            ..PlatformSpecific::default()
+        },
+        ..IcedWindowSettings::default()
+    };
+
+    let settings = IcedSettings {
+        antialiasing: true,
+        ..Default::default()
+    };
+
+    iced::application("Aria", Overlay::update, Overlay::view)
+        .subscription(Overlay::subscription)
+        .window(window_settings)
+        .settings(settings)
+        .theme(Overlay::theme)
+        .centered()
+        .run_with(Overlay::new)
         .unwrap();
 }
 
