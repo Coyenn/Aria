@@ -75,14 +75,18 @@ impl TTSManager {
     }
 }
 
-pub fn say(text: &str) -> windows::core::Result<()> {
-    TTS_MANAGER.lock().unwrap().say(text)
-}
+pub struct TTS {}
 
-pub fn stop_tts() -> windows::core::Result<()> {
-    TTS_MANAGER.lock().unwrap().stop()
-}
+impl TTS {
+    pub fn say(text: &str) -> windows::core::Result<()> {
+        TTS_MANAGER.lock().unwrap().say(text)
+    }
 
-pub fn destroy_tts() -> windows::core::Result<()> {
-    TTS_MANAGER.lock().unwrap().destroy()
+    pub fn stop() -> windows::core::Result<()> {
+        TTS_MANAGER.lock().unwrap().stop()
+    }
+
+    pub fn destroy() -> windows::core::Result<()> {
+        TTS_MANAGER.lock().unwrap().destroy()
+    }
 }

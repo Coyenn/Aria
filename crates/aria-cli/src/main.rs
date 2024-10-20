@@ -1,5 +1,9 @@
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
 use aria_core::driver::WindowsDriver;
-use aria_utils::config::get_config;
 use clap::Parser;
 use log::Level;
 
@@ -27,27 +31,20 @@ fn main() {
         Some(Command::Start) => start_aria(),
         _ => start_aria(),
     }
-
-    // Wait for user input to exit, due to the keylogger, only Enter, LeftControl, and C can be used.
-    let mut input = String::new();
-
-    std::io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line.");
-
-    stop_aria();
 }
 
 pub fn start_aria() {
-    get_config()
-        .or_else(|e| {
-            log::error!("Failed to load config: {:?}", e);
-            Err(e)
-        })
-        .unwrap();
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
 
-    log::info!("Starting Aria Windows driver.");
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
     WindowsDriver::start();
+    while running.load(Ordering::SeqCst) {}
+    WindowsDriver::stop();
 }
 
 pub fn stop_aria() {

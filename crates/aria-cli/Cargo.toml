@@ -10,4 +10,3 @@ log = "0.4.22"
 simple_logger = "5.0.0"
 
 aria-core = { path = "../aria-core" }
-aria-utils = { path = "../aria-utils" }

@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 use std::thread;
 
-use aria_tts::tts::{destroy_tts, say, stop_tts};
+use aria_tts::tts::TTS;
 use aria_utils::config::get_config;
 use mki::{Action, Keyboard};
 use once_cell::sync::Lazy;
@@ -68,8 +68,8 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
 
         let info_string = parts.join(", ");
 
-        stop_tts().unwrap();
-        say(&info_string).or_else(|e| {
+        TTS::stop().unwrap();
+        TTS::say(&info_string).or_else(|e| {
             log::error!("TTS failed on focus change: {:?}", e);
             Err(e)
         })?;
@@ -82,8 +82,8 @@ fn on_keypress(key_name: String) {
     log::info!("Key pressed: {}", key_name);
 
     if IS_FOCUSSED_ON_INPUT.lock().unwrap().clone() {
-        stop_tts().unwrap();
-        say(&key_name.clone())
+        TTS::stop().unwrap();
+        TTS::say(&key_name.clone())
             .or_else(|e| {
                 log::error!("TTS failed on keypress: {:?}", e);
                 Err(e)
@@ -106,26 +106,20 @@ impl WindowsDriver {
         if config.startup_shutdown_sounds {
             play_sound(STARTUP_SOUND);
             std::thread::sleep(std::time::Duration::from_secs(3));
-            say("Welcome to Aria.").unwrap();
+            TTS::say("Welcome to Aria.").unwrap();
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
 
-        // Listen for focus changes, e.g. when a window or control is focused.
-        log::info!("Listening for focus changes.");
         automation
             .add_focus_changed_event_handler(None, &focus_changed_handler)
             .expect("Could not add focus changed event handler.");
 
-        // Listen for keypresses.
-        log::info!("Listening for keypresses.");
         mki::bind_any_key(Action::handle_kb(|key| {
             use Keyboard::*;
 
-            if !matches!(key, Enter | LeftControl | C) {
-                match key {
-                    Escape => stop_tts().unwrap(),
-                    _ => on_keypress(format!("{:?}", key)),
-                }
+            match key {
+                Escape => TTS::stop().unwrap(),
+                _ => on_keypress(format!("{:?}", key)),
             }
         }));
     }
@@ -135,10 +129,10 @@ impl WindowsDriver {
 
         log::info!("Stopping Windows driver.");
 
-        stop_tts().unwrap();
-        say("Aria shutting down.").unwrap();
+        TTS::stop().unwrap();
+        TTS::say("Aria shutting down.").unwrap();
         thread::sleep(std::time::Duration::from_secs(1));
-        destroy_tts().expect("Failed to destroy TTS. This may cause a memory leak.");
+        TTS::destroy().expect("Failed to destroy TTS. This may cause a memory leak.");
 
         if config.startup_shutdown_sounds {
             play_sound(SHUTDOWN_SOUND);
