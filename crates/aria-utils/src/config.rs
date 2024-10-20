@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use config::{Config, ConfigError};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct AriaConfig {
     pub speech_rate: f64,
     pub pitch: f64,
@@ -24,7 +24,13 @@ impl Default for AriaConfig {
     }
 }
 
-fn get_config_path() -> PathBuf {
+pub fn get_config_path() -> PathBuf {
+    let overridden_path = std::env::var("ARIA_PATH").ok();
+
+    if let Some(path) = overridden_path {
+        return PathBuf::from(path);
+    }
+
     dirs::home_dir()
         .map(|mut path| {
             path.push(".config/aria/aria.toml");
@@ -33,7 +39,7 @@ fn get_config_path() -> PathBuf {
         .unwrap_or(PathBuf::from("aria.toml"))
 }
 
-fn create_default_config(path: &PathBuf) -> Result<(), std::io::Error> {
+pub fn create_default_config(path: &PathBuf) -> Result<(), std::io::Error> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

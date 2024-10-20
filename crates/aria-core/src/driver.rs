@@ -2,6 +2,7 @@ use std::sync::Mutex;
 use std::thread;
 
 use aria_tts::tts::TTS;
+use aria_utils::clean_text::{clean_text, RegexCleanerPair};
 use aria_utils::config::get_config;
 use mki::{Action, Keyboard};
 use once_cell::sync::Lazy;
@@ -17,6 +18,18 @@ struct FocusChangedEventHandler {
 }
 
 static IS_FOCUSSED_ON_INPUT: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+static CONTENT_CLEAN_LIST: Lazy<Vec<RegexCleanerPair>> = Lazy::new(|| {
+    RegexCleanerPair::prep_list(&[
+        // Replace multiple spaces with a single space
+        (r"\s+", " "),
+        // Convert a string of numbers and letters to a hash
+        (
+            r"(?P<s>[0-9a-f]{6})([0-9]+[a-f]|[a-f]+[0-9])[0-9a-f]*",
+            "hash $s",
+        ),
+    ])
+    .unwrap()
+});
 
 impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
     fn handle(&self, sender: &uiautomation::UIElement) -> uiautomation::Result<()> {
@@ -68,9 +81,10 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
         }
 
         let info_string = parts.join(", ");
+        let cleaned_info_string: String = clean_text(&info_string, &CONTENT_CLEAN_LIST);
 
         TTS::stop(false).unwrap();
-        TTS::speak(&info_string, false).or_else(|e| {
+        TTS::speak(&cleaned_info_string, false).or_else(|e| {
             log::error!("TTS failed on focus change: {:?}", e);
             Err(e)
         })?;
