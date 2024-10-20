@@ -43,15 +43,16 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
             .trim()
             .to_string();
         let control_type = sender.get_control_type().unwrap();
+        let mut is_focussed_on_input = IS_FOCUSSED_ON_INPUT.lock().unwrap();
 
         log::info!("Focus changed to: {}", name);
 
         if control_type == ControlType::Edit || control_type == ControlType::ComboBox {
             play_sound(INPUT_FOCUSSED_SOUND);
 
-            *IS_FOCUSSED_ON_INPUT.lock().unwrap() = true;
+            *is_focussed_on_input = true;
         } else {
-            *IS_FOCUSSED_ON_INPUT.lock().unwrap() = false;
+            *is_focussed_on_input = false;
         }
 
         let mut parts = Vec::new();
@@ -68,8 +69,8 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
 
         let info_string = parts.join(", ");
 
-        TTS::stop().unwrap();
-        TTS::say(&info_string).or_else(|e| {
+        TTS::stop(false).unwrap();
+        TTS::speak(&info_string, false).or_else(|e| {
             log::error!("TTS failed on focus change: {:?}", e);
             Err(e)
         })?;
@@ -82,8 +83,8 @@ fn on_keypress(key_name: String) {
     log::info!("Key pressed: {}", key_name);
 
     if IS_FOCUSSED_ON_INPUT.lock().unwrap().clone() {
-        TTS::stop().unwrap();
-        TTS::say(&key_name.clone())
+        TTS::stop(false).unwrap();
+        TTS::speak(&key_name.clone(), false)
             .or_else(|e| {
                 log::error!("TTS failed on keypress: {:?}", e);
                 Err(e)
@@ -103,10 +104,13 @@ impl WindowsDriver {
         };
         let focus_changed_handler = UIFocusChangedEventHandler::from(focus_changed_handler);
 
+        TTS::set_can_stop(false).unwrap();
+        TTS::set_can_speak(false).unwrap();
+
         if config.startup_shutdown_sounds {
             play_sound(STARTUP_SOUND);
             std::thread::sleep(std::time::Duration::from_secs(3));
-            TTS::say("Welcome to Aria.").unwrap();
+            TTS::speak("Welcome to Aria.", true).unwrap();
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
 
@@ -118,10 +122,13 @@ impl WindowsDriver {
             use Keyboard::*;
 
             match key {
-                Escape => TTS::stop().unwrap(),
+                Escape => TTS::stop(true).unwrap(),
                 _ => on_keypress(format!("{:?}", key)),
             }
         }));
+
+        TTS::set_can_stop(true).unwrap();
+        TTS::set_can_speak(true).unwrap();
     }
 
     pub fn stop() {
@@ -129,8 +136,10 @@ impl WindowsDriver {
 
         log::info!("Stopping Windows driver.");
 
-        TTS::stop().unwrap();
-        TTS::say("Aria shutting down.").unwrap();
+        TTS::set_can_stop(false).unwrap();
+        TTS::set_can_speak(false).unwrap();
+        TTS::stop(true).unwrap();
+        TTS::speak("Aria shutting down.", true).unwrap();
         thread::sleep(std::time::Duration::from_secs(1));
         TTS::destroy().expect("Failed to destroy TTS. This may cause a memory leak.");
 
