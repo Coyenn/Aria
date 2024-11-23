@@ -27,5 +27,5 @@ jobs:
       - name: Upload built binary
         uses: actions/upload-artifact@v4
         with:
-          name: aria-cli.exe
+          name: aria-cli
           path: target/x86_64-pc-windows-gnu/release/aria-cli.exe
