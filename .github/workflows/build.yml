@@ -19,7 +19,7 @@ jobs:
       - name: Install nix
         uses: cachix/install-nix-action@v27
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          nix_path: nixpkgs=channel:nixos-24.05
 
       - name: Build binary
         run: nix-shell shell.nix --run 'cargo build --release'
