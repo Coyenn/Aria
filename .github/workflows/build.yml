@@ -22,10 +22,10 @@ jobs:
           nix_path: nixpkgs=channel:nixos-24.05
 
       - name: Build binary
-        run: nix-shell shell.nix --run 'cargo build --release'
+        run: nix build
 
       - name: Upload built binary
         uses: actions/upload-artifact@v4
         with:
-          name: aria-cli
-          path: target/x86_64-pc-windows-gnu/release/aria-cli.exe
+          name: aria
+          path: result/bin/aria-cli.exe

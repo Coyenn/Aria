@@ -13,7 +13,6 @@
     pkgs = import nixpkgs {inherit system;};
     rustupToolchain = "stable";
     rustBuildTargetTriple = "x86_64-pc-windows-gnu";
-    rustBuildHostTriple = "x86_64-unknown-linux-gnu";
 
     # Cross-compilation package set for Windows target
     pkgsCross = import nixpkgs {
@@ -27,7 +26,7 @@
       configureFlags = (oldAttrs.configureFlags or []) ++ ["--enable-static"];
     });
   in {
-    devShells.${system}.default = pkgs.mkShell rec {
+    devShells.${system}.default = pkgs.mkShell {
       buildInputs = with pkgs; [rustup mingw_w64_cc yq];
 
       # Default Rust toolchain and target
@@ -42,6 +41,15 @@
 
       # Pass linker flags for static pthread support
       RUSTFLAGS = builtins.map (a: ''-L ${a}/lib'') [mingw_w64 mingw_w64_pthreads_w_static];
+    };
+
+    packages.${system}.default = pkgsCross.rustPlatform.buildRustPackage {
+      pname = "aria";
+      name = "aria";
+      src = ./.;
+      cargoLock.lockFile = ./Cargo.lock;
+      nativeBuildInputs = [mingw_w64_cc];
+      buildInputs = [mingw_w64 mingw_w64_pthreads_w_static];
     };
   };
 }

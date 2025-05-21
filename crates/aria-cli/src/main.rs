@@ -1,7 +1,4 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::mpsc;
 
 use aria_core::driver::WindowsDriver;
 use clap::Parser;
@@ -34,16 +31,14 @@ fn main() {
 }
 
 pub fn start_aria() {
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-
+    let (tx, rx) = mpsc::channel();
     ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
+        let _ = tx.send(());
     })
     .expect("Error setting Ctrl-C handler");
 
     WindowsDriver::start();
-    while running.load(Ordering::SeqCst) {}
+    rx.recv().expect("Failed to receive Ctrl-C signal");
     WindowsDriver::stop();
 }
 
