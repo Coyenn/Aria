@@ -1,4 +1,4 @@
-use std::sync::mpsc;
+use tokio::sync::mpsc;
 
 use aria_core::driver::WindowsDriver;
 use clap::Parser;
@@ -19,29 +19,33 @@ enum Command {
     Start,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    simple_logger::init_with_level(Level::Info).unwrap();
+    simple_logger::init_with_level(Level::Info)?;
 
     match args.command {
-        Some(Command::Start) => start_aria(),
-        _ => start_aria(),
+        Some(Command::Start) => start_aria().await?,
+        _ => start_aria().await?,
     }
+
+    Ok(())
 }
 
-pub fn start_aria() {
-    let (tx, rx) = mpsc::channel();
+pub async fn start_aria() -> Result<(), Box<dyn std::error::Error>> {
+    let (tx, mut rx) = mpsc::channel(1);
     ctrlc::set_handler(move || {
-        let _ = tx.send(());
-    })
-    .expect("Error setting Ctrl-C handler");
+        let _ = tx.blocking_send(());
+    })?;
 
-    WindowsDriver::start();
-    rx.recv().expect("Failed to receive Ctrl-C signal");
-    WindowsDriver::stop();
+    WindowsDriver::start().await?;
+    rx.recv().await.ok_or("Failed to receive Ctrl-C signal")?;
+    WindowsDriver::stop().await?;
+    Ok(())
 }
 
-pub fn stop_aria() {
-    WindowsDriver::stop();
+pub async fn stop_aria() -> Result<(), Box<dyn std::error::Error>> {
+    WindowsDriver::stop().await?;
+    Ok(())
 }

@@ -1,7 +1,9 @@
 use std::{fs, path::PathBuf};
 
-use config::{Config, ConfigError};
+use config::Config as ConfigLib;
 use serde::{Deserialize, Serialize};
+
+use crate::error::{ConfigError, Result};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct AriaConfig {
@@ -24,11 +26,9 @@ impl Default for AriaConfig {
     }
 }
 
-pub fn get_config_path() -> PathBuf {
-    let overridden_path = std::env::var("ARIA_PATH").ok();
-
-    if let Some(path) = overridden_path {
-        return PathBuf::from(path);
+pub fn get_config_path() -> Result<PathBuf> {
+    if let Ok(path_str) = std::env::var("ARIA_PATH") {
+        return Ok(PathBuf::from(path_str));
     }
 
     dirs::home_dir()
@@ -36,33 +36,34 @@ pub fn get_config_path() -> PathBuf {
             path.push(".config/aria/aria.toml");
             path
         })
-        .unwrap_or(PathBuf::from("aria.toml"))
+        .ok_or(ConfigError::HomeDir)
 }
 
-pub fn create_default_config(path: &PathBuf) -> Result<(), std::io::Error> {
+pub fn create_default_config(path: &PathBuf) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
     let default_config = AriaConfig::default();
-    let toml = toml::to_string(&default_config).expect("Failed to serialize default config");
+    let toml_string = toml::to_string(&default_config)?;
 
-    fs::write(path, toml)
+    fs::write(path, toml_string)?;
+    Ok(())
 }
 
-pub fn get_config() -> Result<AriaConfig, ConfigError> {
-    let config_path = get_config_path();
+pub fn get_config() -> Result<AriaConfig> {
+    let config_path = get_config_path()?;
 
     if !config_path.exists() {
-        create_default_config(&config_path).expect("Failed to create default config file");
+        create_default_config(&config_path)?;
     }
 
-    let config = Config::builder()
-        // Add in `./aria.toml`
-        .add_source(config::File::with_name(config_path.to_str().unwrap()).required(false))
-        // Add in settings from the environment (with a prefix of ARIA)
-        // Eg.. `ARIA_DEBUG=1 ./target/app` would set the `debug` key
+    let config_path_str = config_path.to_str().ok_or_else(|| ConfigError::PathToStr {
+        path: config_path.clone(),
+    })?;
+
+    let settings = ConfigLib::builder()
+        .add_source(config::File::with_name(config_path_str).required(false))
         .add_source(config::Environment::with_prefix("ARIA"))
-        // Set default values
         .set_default("speech_rate", AriaConfig::default().speech_rate)?
         .set_default("pitch", AriaConfig::default().pitch)?
         .set_default("append_silence", AriaConfig::default().append_silence)?
@@ -74,8 +75,7 @@ pub fn get_config() -> Result<AriaConfig, ConfigError> {
             "startup_shutdown_sounds",
             AriaConfig::default().startup_shutdown_sounds,
         )?
-        .build()
-        .unwrap();
+        .build()?;
 
-    return config.try_deserialize::<AriaConfig>();
+    Ok(settings.try_deserialize::<AriaConfig>()?)
 }
