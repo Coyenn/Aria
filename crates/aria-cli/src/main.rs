@@ -44,8 +44,3 @@ pub async fn start_aria() -> Result<(), Box<dyn std::error::Error>> {
     WindowsDriver::stop().await?;
     Ok(())
 }
-
-pub async fn stop_aria() -> Result<(), Box<dyn std::error::Error>> {
-    WindowsDriver::stop().await?;
-    Ok(())
-}

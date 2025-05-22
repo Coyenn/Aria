@@ -1,13 +1,14 @@
-use tokio::runtime::Handle as TokioHandle;
-use tokio::sync::Mutex;
-use tokio::task;
-
+use aria_gui::start_highlight_overlay;
 use aria_tts::error::TTSError;
 use aria_tts::tts::TTS;
 use aria_utils::clean_text::{clean_text, RegexCleanerPair};
 use aria_utils::config::get_config;
+use egui::{Pos2 as EguiPos2, Rect as EguiRect};
 use mki::{Action, Keyboard};
 use once_cell::sync::{Lazy, OnceCell as StaticOnceCell};
+use tokio::runtime::Handle as TokioHandle;
+use tokio::sync::{mpsc, Mutex};
+use tokio::task;
 use uiautomation::controls::ControlType;
 use uiautomation::core::UIAutomation;
 use uiautomation::events::{CustomFocusChangedEventHandler, UIFocusChangedEventHandler};
@@ -18,14 +19,14 @@ use crate::sound::{play_sound, INPUT_FOCUSSED_SOUND, SHUTDOWN_SOUND, STARTUP_SOU
 
 // Static for Tokio Runtime Handle
 static TOKIO_RUNTIME_HANDLE: StaticOnceCell<TokioHandle> = StaticOnceCell::new();
+static RECT_SENDER: StaticOnceCell<mpsc::Sender<Option<EguiRect>>> = StaticOnceCell::new();
 
 // Result type alias for this module
 type Result<T> = std::result::Result<T, CoreError>;
 
 struct FocusChangedEventHandler {
     previous_element: Mutex<Option<UIElement>>,
-    // It's important that UIElement is Send + Sync if it's stored across .await points.
-    // If not, it might need to be handled differently, e.g., by extracting necessary data synchronously.
+    // No need to store sender here if using a static OnceCell
 }
 
 static IS_FOCUSSED_ON_INPUT: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
@@ -41,9 +42,6 @@ static CONTENT_CLEAN_LIST: Lazy<Result<Vec<RegexCleanerPair>>> = Lazy::new(|| {
 });
 
 impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
-    // This handler is called by uiautomation, which is likely synchronous.
-    // We should avoid blocking operations here or making it async directly if the trait doesn't support it.
-    // If long async work is needed, it should be spawned onto the tokio runtime.
     fn handle(&self, sender: &UIElement) -> uiautomation::Result<()> {
         let mut previous_lock = match self.previous_element.try_lock() {
             Ok(guard) => guard,
@@ -64,6 +62,43 @@ impl CustomFocusChangedEventHandler for FocusChangedEventHandler {
         // Or let it drop naturally at the end of its scope.
         // For clarity and to minimize lock duration if other calls are slow:
         drop(previous_lock);
+
+        if let Some(rect_tx) = RECT_SENDER.get() {
+            match sender.get_bounding_rectangle() {
+                Ok(ui_rect) => {
+                    let egui_rect = EguiRect::from_min_max(
+                        EguiPos2::new(ui_rect.get_left() as f32, ui_rect.get_top() as f32),
+                        EguiPos2::new(ui_rect.get_right() as f32, ui_rect.get_bottom() as f32),
+                    );
+                    let tx_clone = rect_tx.clone();
+                    if let Some(handle) = TOKIO_RUNTIME_HANDLE.get() {
+                        handle.spawn(async move {
+                            if let Err(e) = tx_clone.send(Some(egui_rect)).await {
+                                log::error!("Failed to send highlight rect: {:?}", e);
+                            }
+                        });
+                    } else {
+                        log::error!("Tokio runtime not available for sending highlight rect.");
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to get bounding rectangle for highlight: {:?}", e);
+                    // Optionally send None to clear previous rect if element has no bounds
+                    let tx_clone = rect_tx.clone();
+                    if let Some(handle) = TOKIO_RUNTIME_HANDLE.get() {
+                        handle.spawn(async move {
+                            if let Err(send_err) = tx_clone.send(None).await {
+                                log::error!("Failed to clear highlight rect: {:?}", send_err);
+                            }
+                        });
+                    } else {
+                        log::error!("Tokio runtime not available for clearing highlight rect.");
+                    }
+                }
+            }
+        } else {
+            log::warn!("RECT_SENDER not initialized, cannot highlight focus.");
+        }
 
         // These calls to sender might be blocking COM calls.
         // If so, they should ideally be wrapped in spawn_blocking.
@@ -190,6 +225,12 @@ impl WindowsDriver {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
 
+        // Start the highlight overlay and store the sender
+        let highlight_sender = start_highlight_overlay();
+        RECT_SENDER
+            .set(highlight_sender)
+            .map_err(|_| CoreError::Init("Failed to set RECT_SENDER for highlighter"))?;
+
         // Setup event handlers after TTS flags are set for normal operation.
         let automation = UIAutomation::new()?;
         let focus_changed_handler = FocusChangedEventHandler {
@@ -253,6 +294,24 @@ impl WindowsDriver {
         if config.startup_shutdown_sounds {
             play_sound(SHUTDOWN_SOUND);
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+
+        // Optionally, tell the highlighter to clear any existing rectangle or close
+        if let Some(rect_tx) = RECT_SENDER.get() {
+            let tx_clone = rect_tx.clone();
+            if let Some(handle) = TOKIO_RUNTIME_HANDLE.get() {
+                handle.spawn(async move {
+                    if let Err(e) = tx_clone.send(None).await {
+                        // Clear rectangle on stop
+                        log::warn!("Failed to send None to highlight sender on stop: {:?}", e);
+                    }
+                    // The overlay will close when its rect_receiver channel detects disconnection,
+                    // which happens when RECT_SENDER is dropped.
+                    // If RECT_SENDER is in a StaticOnceCell, it's dropped when the program terminates.
+                });
+            } else {
+                log::warn!("Tokio runtime not available for clearing highlight rect on stop.");
+            }
         }
         Ok(())
     }

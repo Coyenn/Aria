@@ -27,7 +27,7 @@
     });
   in {
     devShells.${system}.default = pkgs.mkShell {
-      buildInputs = with pkgs; [rustup mingw_w64_cc yq];
+      buildInputs = with pkgs; [rustup mingw_w64_cc yq cmake];
 
       # Default Rust toolchain and target
       RUSTUP_TOOLCHAIN = rustupToolchain;
@@ -37,6 +37,21 @@
         # Ensure our Windows target is added and rustfmt is available
         rustup target add "${rustBuildTargetTriple}"
         rustup component add rustfmt
+
+        # Use Windows system name via toolchain file
+        export CMAKE_TOOLCHAIN_FILE="$PWD/mingw-generic.cmake"
+        # Set cross compilers
+        export CC=x86_64-w64-mingw32-gcc
+        export CXX=x86_64-w64-mingw32-g++
+        export RC=x86_64-w64-mingw32-windres
+
+        # Clear default and initial linker flags to remove --major-image-version
+        export CMAKE_EXE_LINKER_FLAGS_INIT=""
+        export CMAKE_SHARED_LINKER_FLAGS_INIT=""
+        export CMAKE_MODULE_LINKER_FLAGS_INIT=""
+        export CMAKE_EXE_LINKER_FLAGS=""
+        export CMAKE_SHARED_LINKER_FLAGS=""
+        export CMAKE_MODULE_LINKER_FLAGS=""
       '';
 
       # Pass linker flags for static pthread support

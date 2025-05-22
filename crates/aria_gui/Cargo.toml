@@ -1,0 +1,11 @@
+[package]
+name = "aria_gui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.26"
+egui_overlay = "0.8.1"
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
