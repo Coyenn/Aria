@@ -63,7 +63,7 @@
       name = "aria";
       src = ./.;
       cargoLock.lockFile = ./Cargo.lock;
-      nativeBuildInputs = [mingw_w64_cc];
+      nativeBuildInputs = [mingw_w64_cc pkgs.cmake];
       buildInputs = [mingw_w64 mingw_w64_pthreads_w_static];
     };
   };
