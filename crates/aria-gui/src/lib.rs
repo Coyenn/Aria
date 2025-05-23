@@ -3,6 +3,7 @@ use egui::{Context, Rect, Rgba, Shape, Stroke};
 use egui_overlay::egui_render_three_d::ThreeDBackend as DefaultGfxBackend;
 use egui_overlay::egui_window_glfw_passthrough::GlfwBackend;
 use egui_overlay::{start, EguiOverlay};
+use image::ImageFormat;
 use std::thread;
 use tokio::sync::{mpsc, oneshot};
 
@@ -34,6 +35,12 @@ impl EguiOverlay for FocusHighlighter {
         if !self.initialized {
             // Set window title and icon
             glfw_backend.window.set_title("Aria Focus Overlay");
+
+            // Load and set the icon
+            if let Some(icon) = load_icon() {
+                glfw_backend.window.set_icon_from_pixels(vec![icon]);
+            }
+
             glfw_backend.set_passthrough(true);
             glfw_backend.glfw.with_primary_monitor(|_, monitor_opt| {
                 if let Some(monitor) = monitor_opt {
@@ -118,6 +125,37 @@ pub fn start_highlight_overlay() -> (mpsc::Sender<Option<Rect>>, oneshot::Receiv
     });
 
     (tx, close_rx)
+}
+
+/// Load the icon from the assets directory
+fn load_icon() -> Option<egui_overlay::egui_window_glfw_passthrough::glfw::PixelImage> {
+    use egui_overlay::egui_window_glfw_passthrough::glfw::PixelImage;
+
+    // Try to load the icon from the assets directory
+    let icon_bytes = include_bytes!("../assets/icon.ico");
+
+    // Load the image using the image crate
+    if let Ok(img) = image::load_from_memory_with_format(icon_bytes, ImageFormat::Ico) {
+        let rgba_img = img.to_rgba8();
+        let (width, height) = rgba_img.dimensions();
+        // Convert RGBA bytes to u32 pixels (ABGR format for little-endian)
+        let pixels: Vec<u32> = rgba_img
+            .pixels()
+            .map(|rgba| {
+                let [r, g, b, a] = rgba.0;
+                (a as u32) << 24 | (b as u32) << 16 | (g as u32) << 8 | (r as u32)
+            })
+            .collect();
+
+        Some(PixelImage {
+            width,
+            height,
+            pixels,
+        })
+    } else {
+        log::warn!("Failed to load icon from assets/icon.ico");
+        None
+    }
 }
 
 #[cfg(test)]
