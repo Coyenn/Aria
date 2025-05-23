@@ -1,11 +1,18 @@
 [package]
-name = "aria_gui"
+name = "aria-gui"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+aria-core = { path = "../aria-core" }
 egui = "0.26"
 egui_overlay = "0.8.1"
 tokio = { version = "1", features = ["full"] }
+log = "0.4.22"
+simple_logger = "4.3.3"
+ctrlc = "3.4.4"
+
+[build-dependencies]
+winresource = "0.1.17"
 
 [dev-dependencies]

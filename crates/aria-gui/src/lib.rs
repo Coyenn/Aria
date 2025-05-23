@@ -30,6 +30,8 @@ impl EguiOverlay for FocusHighlighter {
         glfw_backend: &mut GlfwBackend,
     ) {
         if !self.initialized {
+            // Set window title
+            glfw_backend.window.set_title("Aria");
             glfw_backend.set_passthrough(true);
             glfw_backend.glfw.with_primary_monitor(|_, monitor_opt| {
                 if let Some(monitor) = monitor_opt {
@@ -43,6 +45,7 @@ impl EguiOverlay for FocusHighlighter {
             });
             self.initialized = true;
         }
+
         if let Ok(Some(rect)) = self.receiver.try_recv() {
             self.target_rect = Some(rect);
         }

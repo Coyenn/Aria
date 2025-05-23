@@ -1,4 +1,3 @@
-use aria_gui::start_highlight_overlay;
 use aria_tts::error::TTSError;
 use aria_tts::tts::TTS;
 use aria_utils::clean_text::{clean_text, RegexCleanerPair};
@@ -195,6 +194,12 @@ pub struct WindowsDriver {}
 
 impl WindowsDriver {
     pub async fn start() -> Result<()> {
+        Self::start_with_highlight(None).await
+    }
+
+    pub async fn start_with_highlight(
+        highlight_sender: Option<mpsc::Sender<Option<EguiRect>>>,
+    ) -> Result<()> {
         // Ensure the Tokio runtime handle is initialized and stored.
         TOKIO_RUNTIME_HANDLE.get_or_init(tokio::runtime::Handle::current);
         // Check if it was successfully initialized (it should be, unless Handle::current() panics,
@@ -225,11 +230,12 @@ impl WindowsDriver {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
 
-        // Start the highlight overlay and store the sender
-        let highlight_sender = start_highlight_overlay();
-        RECT_SENDER
-            .set(highlight_sender)
-            .map_err(|_| CoreError::Init("Failed to set RECT_SENDER for highlighter"))?;
+        // Store the highlight sender if provided
+        if let Some(sender) = highlight_sender {
+            RECT_SENDER
+                .set(sender)
+                .map_err(|_| CoreError::Init("Failed to set RECT_SENDER for highlighter"))?;
+        }
 
         // Setup event handlers after TTS flags are set for normal operation.
         let automation = UIAutomation::new()?;

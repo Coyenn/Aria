@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 aria-tts = { path = "../aria-tts" }
 aria-utils = { path = "../aria-utils" }
-aria_gui = { path = "../aria_gui" }
 egui = "0.26"
 uiautomation = "0.12.4"
 winapi = { version = "0.3.9", features = ["winuser"] }

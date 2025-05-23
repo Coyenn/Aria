@@ -157,7 +157,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "log",
- "simple_logger",
+ "simple_logger 5.0.0",
  "tokio",
  "winresource",
 ]
@@ -168,7 +168,6 @@ version = "0.1.0"
 dependencies = [
  "aria-tts",
  "aria-utils",
- "aria_gui",
  "egui",
  "log",
  "mki",
@@ -179,6 +178,20 @@ dependencies = [
  "tokio",
  "uiautomation",
  "winapi",
+]
+
+[[package]]
+name = "aria-gui"
+version = "0.1.0"
+dependencies = [
+ "aria-core",
+ "ctrlc",
+ "egui",
+ "egui_overlay",
+ "log",
+ "simple_logger 4.3.3",
+ "tokio",
+ "winresource",
 ]
 
 [[package]]
@@ -208,15 +221,6 @@ dependencies = [
  "thiserror",
  "toml 0.8.19",
  "unicode-segmentation",
-]
-
-[[package]]
-name = "aria_gui"
-version = "0.1.0"
-dependencies = [
- "egui",
- "egui_overlay",
- "tokio",
 ]
 
 [[package]]
@@ -1885,6 +1889,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9203b8055f63a2a00e2f593bb0510367fe707d7ff1e5c872de2f537b339e5410"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "simple_logger"
+version = "4.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e7e46c8c90251d47d08b28b8a419ffb4aede0f87c2eea95e17d1d5bacbf3ef1"
+dependencies = [
+ "colored",
+ "log",
+ "time",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
