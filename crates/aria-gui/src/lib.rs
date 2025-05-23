@@ -4,20 +4,22 @@ use egui_overlay::egui_render_three_d::ThreeDBackend as DefaultGfxBackend;
 use egui_overlay::egui_window_glfw_passthrough::GlfwBackend;
 use egui_overlay::{start, EguiOverlay};
 use std::thread;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 pub struct FocusHighlighter {
     target_rect: Option<Rect>,
     receiver: mpsc::Receiver<Option<Rect>>,
     initialized: bool,
+    close_sender: Option<oneshot::Sender<()>>,
 }
 
 impl FocusHighlighter {
-    pub fn new(receiver: mpsc::Receiver<Option<Rect>>) -> Self {
+    pub fn new(receiver: mpsc::Receiver<Option<Rect>>, close_sender: oneshot::Sender<()>) -> Self {
         Self {
             target_rect: None,
             receiver,
             initialized: false,
+            close_sender: Some(close_sender),
         }
     }
 }
@@ -30,8 +32,8 @@ impl EguiOverlay for FocusHighlighter {
         glfw_backend: &mut GlfwBackend,
     ) {
         if !self.initialized {
-            // Set window title
-            glfw_backend.window.set_title("Aria");
+            // Set window title and icon
+            glfw_backend.window.set_title("Aria Focus Overlay");
             glfw_backend.set_passthrough(true);
             glfw_backend.glfw.with_primary_monitor(|_, monitor_opt| {
                 if let Some(monitor) = monitor_opt {
@@ -44,6 +46,13 @@ impl EguiOverlay for FocusHighlighter {
                 }
             });
             self.initialized = true;
+        }
+
+        // Check if window should close
+        if glfw_backend.window.should_close() {
+            if let Some(close_sender) = self.close_sender.take() {
+                let _ = close_sender.send(());
+            }
         }
 
         if let Ok(Some(rect)) = self.receiver.try_recv() {
@@ -62,6 +71,14 @@ impl EguiOverlay for FocusHighlighter {
         default_gfx_backend: &mut DefaultGfxBackend,
         glfw_backend: &mut GlfwBackend,
     ) -> Option<(egui::PlatformOutput, std::time::Duration)> {
+        // Check if window should close first
+        if glfw_backend.window.should_close() {
+            if let Some(close_sender) = self.close_sender.take() {
+                let _ = close_sender.send(());
+            }
+            return None; // Exit the run loop
+        }
+
         // Gather input and prepare frame
         let input = glfw_backend.take_raw_input();
         default_gfx_backend.prepare_frame(|| {
@@ -91,13 +108,16 @@ impl EguiOverlay for FocusHighlighter {
     }
 }
 
-/// Starts the overlay and returns a sender to update the highlighted rectangle.
-pub fn start_highlight_overlay() -> mpsc::Sender<Option<Rect>> {
+/// Starts the overlay and returns a sender to update the highlighted rectangle and a receiver for close events.
+pub fn start_highlight_overlay() -> (mpsc::Sender<Option<Rect>>, oneshot::Receiver<()>) {
     let (tx, rx) = mpsc::channel(10);
+    let (close_tx, close_rx) = oneshot::channel();
+
     thread::spawn(move || {
-        start(FocusHighlighter::new(rx));
+        start(FocusHighlighter::new(rx, close_tx));
     });
-    tx
+
+    (tx, close_rx)
 }
 
 #[cfg(test)]
@@ -108,7 +128,7 @@ mod tests {
     #[test]
     fn new_has_no_rect() {
         let (_tx, rx) = mpsc::channel::<Option<Rect>>(1);
-        let hl = FocusHighlighter::new(rx);
+        let hl = FocusHighlighter::new(rx, oneshot::channel().0);
         assert!(hl.target_rect.is_none());
     }
 }

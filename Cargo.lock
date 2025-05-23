@@ -185,6 +185,7 @@ name = "aria-gui"
 version = "0.1.0"
 dependencies = [
  "aria-core",
+ "chrono",
  "ctrlc",
  "egui",
  "egui_overlay",
