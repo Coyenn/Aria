@@ -7,11 +7,20 @@ use image::ImageFormat;
 use std::thread;
 use tokio::sync::{mpsc, oneshot};
 
+#[derive(Debug, Clone)]
+struct MonitorInfo {
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+}
+
 pub struct FocusHighlighter {
     target_rect: Option<Rect>,
     receiver: mpsc::Receiver<Option<Rect>>,
     initialized: bool,
     close_sender: Option<oneshot::Sender<()>>,
+    current_monitor: Option<MonitorInfo>,
 }
 
 impl FocusHighlighter {
@@ -21,7 +30,96 @@ impl FocusHighlighter {
             receiver,
             initialized: false,
             close_sender: Some(close_sender),
+            current_monitor: None,
         }
+    }
+
+    /// Find which monitor contains the given rectangle
+    fn find_monitor_for_rect(&self, glfw_backend: &mut GlfwBackend, rect: Rect) -> Option<MonitorInfo> {
+        let rect_center_x = rect.center().x;
+        let rect_center_y = rect.center().y;
+
+        // Get all monitors using the GLFW API
+        let mut target_monitor = None;
+        
+        glfw_backend.glfw.with_connected_monitors(|_, monitors| {
+            // First pass: Check if the rectangle center is within any monitor's bounds
+            for monitor in monitors {
+                if let Some(mode) = monitor.get_video_mode() {
+                    let (monitor_x, monitor_y) = monitor.get_pos();
+                    let monitor_width = mode.width as i32;
+                    let monitor_height = mode.height as i32;
+                    
+                    // Check if the rectangle center is within this monitor's bounds
+                    if rect_center_x >= monitor_x as f32 
+                        && rect_center_x < (monitor_x + monitor_width) as f32
+                        && rect_center_y >= monitor_y as f32 
+                        && rect_center_y < (monitor_y + monitor_height) as f32 {
+                        
+                        target_monitor = Some(MonitorInfo {
+                            x: monitor_x,
+                            y: monitor_y,
+                            width: monitor_width,
+                            height: monitor_height,
+                        });
+                        return; // Break out of the closure
+                    }
+                }
+            }
+
+            // Second pass: If no monitor contains the rect center, find the monitor with the largest overlap
+            let mut best_monitor = None;
+            let mut best_overlap_area = 0.0;
+
+            for monitor in monitors {
+                if let Some(mode) = monitor.get_video_mode() {
+                    let (monitor_x, monitor_y) = monitor.get_pos();
+                    let monitor_width = mode.width as i32;
+                    let monitor_height = mode.height as i32;
+                    
+                    // Calculate overlap area
+                    let overlap_left = rect.min.x.max(monitor_x as f32);
+                    let overlap_top = rect.min.y.max(monitor_y as f32);
+                    let overlap_right = rect.max.x.min((monitor_x + monitor_width) as f32);
+                    let overlap_bottom = rect.max.y.min((monitor_y + monitor_height) as f32);
+                    
+                    if overlap_right > overlap_left && overlap_bottom > overlap_top {
+                        let overlap_area = (overlap_right - overlap_left) * (overlap_bottom - overlap_top);
+                        
+                        if overlap_area > best_overlap_area {
+                            best_overlap_area = overlap_area;
+                            best_monitor = Some(MonitorInfo {
+                                x: monitor_x,
+                                y: monitor_y,
+                                width: monitor_width,
+                                height: monitor_height,
+                            });
+                        }
+                    }
+                }
+            }
+
+            target_monitor = best_monitor;
+        });
+
+        target_monitor
+    }
+
+    /// Update the overlay window to cover the specified monitor
+    fn update_to_monitor(&mut self, glfw_backend: &mut GlfwBackend, monitor_info: &MonitorInfo) {
+        log::info!(
+            "Switching overlay to monitor at {}x{} ({}x{})",
+            monitor_info.x, monitor_info.y, monitor_info.width, monitor_info.height
+        );
+        
+        glfw_backend.window.set_pos(monitor_info.x, monitor_info.y);
+        glfw_backend.window.set_size(
+            monitor_info.width,
+            // -1 because once the window is full size, it turns black. Gotta love Windows.
+            monitor_info.height - 1,
+        );
+        
+        self.current_monitor = Some(monitor_info.clone());
     }
 }
 
@@ -42,14 +140,26 @@ impl EguiOverlay for FocusHighlighter {
             }
 
             glfw_backend.set_passthrough(true);
+            
+            // Start with the primary monitor
             glfw_backend.glfw.with_primary_monitor(|_, monitor_opt| {
                 if let Some(monitor) = monitor_opt {
                     if let Some(mode) = monitor.get_video_mode() {
-                        glfw_backend.window.set_pos(0, 0);
-                        glfw_backend
-                            .window
+                        let (monitor_x, monitor_y) = monitor.get_pos();
+                        let monitor_info = MonitorInfo {
+                            x: monitor_x,
+                            y: monitor_y,
+                            width: mode.width as i32,
+                            height: mode.height as i32,
+                        };
+                        
+                        glfw_backend.window.set_pos(monitor_info.x, monitor_info.y);
+                        glfw_backend.window.set_size(
+                            monitor_info.width,
                             // -1 because once the window is full size, it turns black. Gotta love Windows.
-                            .set_size(mode.width as i32, (mode.height - 1) as i32);
+                            monitor_info.height - 1,
+                        );
+                        self.current_monitor = Some(monitor_info);
                     }
                 }
             });
@@ -63,13 +173,50 @@ impl EguiOverlay for FocusHighlighter {
             }
         }
 
+        // Handle incoming rectangle updates
         if let Ok(Some(rect)) = self.receiver.try_recv() {
             self.target_rect = Some(rect);
+            
+            // Check if we need to switch monitors
+            if let Some(target_monitor) = self.find_monitor_for_rect(glfw_backend, rect) {
+                // Only update if we're switching to a different monitor
+                let should_update = match &self.current_monitor {
+                    Some(current) => {
+                        current.x != target_monitor.x 
+                        || current.y != target_monitor.y 
+                        || current.width != target_monitor.width 
+                        || current.height != target_monitor.height
+                    }
+                    None => true,
+                };
+                
+                if should_update {
+                    self.update_to_monitor(glfw_backend, &target_monitor);
+                }
+            }
         }
+        
+        // Draw the highlight rectangle
         if let Some(rect) = self.target_rect {
+            // Adjust rect coordinates relative to current monitor if needed
+            let adjusted_rect = if let Some(current_monitor) = &self.current_monitor {
+                Rect::from_min_max(
+                    egui::Pos2::new(
+                        rect.min.x - current_monitor.x as f32,
+                        rect.min.y - current_monitor.y as f32,
+                    ),
+                    egui::Pos2::new(
+                        rect.max.x - current_monitor.x as f32,
+                        rect.max.y - current_monitor.y as f32,
+                    ),
+                )
+            } else {
+                rect
+            };
+            
             let painter = egui_context.layer_painter(egui::LayerId::debug());
             let stroke = Stroke::new(2.0, Rgba::RED);
-            painter.add(Shape::Rect(RectShape::stroke(rect, 0.0, stroke)));
+            painter.add(Shape::Rect(RectShape::stroke(adjusted_rect, 0.0, stroke)));
         }
     }
 
