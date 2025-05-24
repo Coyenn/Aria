@@ -45,10 +45,11 @@ impl EguiOverlay for FocusHighlighter {
             glfw_backend.glfw.with_primary_monitor(|_, monitor_opt| {
                 if let Some(monitor) = monitor_opt {
                     if let Some(mode) = monitor.get_video_mode() {
-                        glfw_backend.window.set_pos(0, 1);
+                        glfw_backend.window.set_pos(0, 0);
                         glfw_backend
                             .window
-                            .set_size(mode.width as i32, mode.height as i32);
+                            // -1 because once the window is full size, it turns black. Gotta love Windows.
+                            .set_size(mode.width as i32, (mode.height - 1) as i32);
                     }
                 }
             });
