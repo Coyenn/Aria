@@ -21,6 +21,17 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-24.05
 
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: ${{ runner.os }}-nix-${{ hashFiles('flake.nix', 'flake.lock', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-nix-${{ hashFiles('flake.nix', 'flake.lock') }}
+            ${{ runner.os }}-nix-
+          paths: |
+            ~/.cache/nix
+            /nix/store
+
       - name: Build binary
         run: nix build
 
