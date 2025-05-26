@@ -150,6 +150,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "aria"
+version = "0.1.0"
+dependencies = [
+ "aria-core",
+ "chrono",
+ "ctrlc",
+ "egui",
+ "egui_overlay",
+ "image",
+ "log",
+ "simple_logger 4.3.3",
+ "tokio",
+ "winresource",
+]
+
+[[package]]
 name = "aria-cli"
 version = "0.1.0"
 dependencies = [
@@ -180,22 +196,6 @@ dependencies = [
  "tokio",
  "uiautomation",
  "winapi",
-]
-
-[[package]]
-name = "aria-gui"
-version = "0.1.0"
-dependencies = [
- "aria-core",
- "chrono",
- "ctrlc",
- "egui",
- "egui_overlay",
- "image",
- "log",
- "simple_logger 4.3.3",
- "tokio",
- "winresource",
 ]
 
 [[package]]

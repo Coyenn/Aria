@@ -4,7 +4,7 @@ members = [
   "crates/aria-tts",
   "crates/aria-utils",
   "crates/aria-core",
-  "crates/aria-gui",
+  "crates/aria",
 ]
 resolver = "2"
 

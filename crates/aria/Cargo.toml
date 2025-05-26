@@ -1,10 +1,10 @@
 [package]
-name = "aria-gui"
+name = "aria"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "aria-gui"
+name = "aria"
 path = "src/main.rs"
 
 [dependencies]

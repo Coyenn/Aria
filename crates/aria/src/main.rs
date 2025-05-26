@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use aria::start_highlight_overlay;
 use aria_core::driver::WindowsDriver;
-use aria_gui::start_highlight_overlay;
 #[cfg(debug_assertions)]
 use log::Level;
 use tokio::sync::mpsc;
@@ -12,12 +12,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     simple_logger::init_with_level(Level::Info)?;
 
     // Start the GUI application
-    start_aria_gui().await?;
+    start_aria().await?;
 
     Ok(())
 }
 
-async fn start_aria_gui() -> Result<(), Box<dyn std::error::Error>> {
+async fn start_aria() -> Result<(), Box<dyn std::error::Error>> {
     // Set up shutdown signal handling for both Ctrl+C and window close
     let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
 
