@@ -64,7 +64,7 @@ async fn create_and_configure_synthesizer() -> Result<SpeechSynthesizer> {
         .map_err(TTSError::Windows)?;
 
     // Set voice if specified in config
-    if let Some(voice_name) = &config.tts_voice {
+    if let Some(voice_name) = &config.voice {
         if let Ok(Some(voice)) = find_voice_by_name(voice_name).await {
             synthesizer.SetVoice(&voice).map_err(TTSError::Windows)?;
         }
