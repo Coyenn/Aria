@@ -11,6 +11,8 @@ windows = { version = "0.58.0", features = [
   "Media_Playback",
   "Media_SpeechSynthesis",
   "Storage_Streams",
+  "Foundation_Collections",
+  "Globalization",
 ] }
 log = "0.4.22"
 lazy_static = "1.5.0"

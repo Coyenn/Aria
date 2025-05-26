@@ -12,6 +12,7 @@ pub struct AriaConfig {
     pub append_silence: bool,
     pub punctuation_silence: bool,
     pub startup_shutdown_sounds: bool,
+    pub tts_voice: Option<String>,
 }
 
 impl Default for AriaConfig {
@@ -22,6 +23,7 @@ impl Default for AriaConfig {
             append_silence: true,
             punctuation_silence: true,
             startup_shutdown_sounds: true,
+            tts_voice: None,
         }
     }
 }
@@ -75,6 +77,7 @@ pub fn get_config() -> Result<AriaConfig> {
             "startup_shutdown_sounds",
             AriaConfig::default().startup_shutdown_sounds,
         )?
+        .set_default("tts_voice", AriaConfig::default().tts_voice)?
         .build()?;
 
     Ok(settings.try_deserialize::<AriaConfig>()?)

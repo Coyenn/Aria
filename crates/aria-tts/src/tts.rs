@@ -10,9 +10,19 @@ use windows::{
     Media::{
         Core::MediaSource,
         Playback::MediaPlayer,
-        SpeechSynthesis::{SpeechAppendedSilence, SpeechPunctuationSilence, SpeechSynthesizer},
+        SpeechSynthesis::{
+            SpeechAppendedSilence, SpeechPunctuationSilence, SpeechSynthesizer, VoiceInformation,
+        },
     },
 };
+
+#[derive(Debug, Clone)]
+pub struct VoiceInfo {
+    pub id: String,
+    pub display_name: String,
+    pub language: String,
+    pub gender: String,
+}
 
 type Result<T> = std::result::Result<T, TTSError>;
 
@@ -52,6 +62,14 @@ async fn create_and_configure_synthesizer() -> Result<SpeechSynthesizer> {
             SpeechPunctuationSilence::Min
         })
         .map_err(TTSError::Windows)?;
+
+    // Set voice if specified in config
+    if let Some(voice_name) = &config.tts_voice {
+        if let Ok(Some(voice)) = find_voice_by_name(voice_name).await {
+            synthesizer.SetVoice(&voice).map_err(TTSError::Windows)?;
+        }
+    }
+
     Ok(synthesizer)
 }
 
@@ -91,6 +109,60 @@ where
         .map_err(TTSError::Windows)
 }
 
+async fn get_installed_voices() -> Result<Vec<VoiceInfo>> {
+    tokio::task::spawn_blocking(|| {
+        let voices = SpeechSynthesizer::AllVoices().map_err(TTSError::Windows)?;
+
+        let mut voice_list = Vec::new();
+        let voice_count = voices.Size().map_err(TTSError::Windows)?;
+
+        for i in 0..voice_count {
+            if let Ok(voice) = voices.GetAt(i) {
+                let display_name = voice.DisplayName().map_err(TTSError::Windows)?.to_string();
+                let id = voice.Id().map_err(TTSError::Windows)?.to_string();
+                let language = voice.Language().map_err(TTSError::Windows)?.to_string();
+                let gender = match voice.Gender().map_err(TTSError::Windows)? {
+                    windows::Media::SpeechSynthesis::VoiceGender::Male => "Male".to_string(),
+                    windows::Media::SpeechSynthesis::VoiceGender::Female => "Female".to_string(),
+                    _ => "Unknown".to_string(),
+                };
+
+                voice_list.push(VoiceInfo {
+                    id,
+                    display_name,
+                    language,
+                    gender,
+                });
+            }
+        }
+
+        Ok(voice_list)
+    })
+    .await
+    .map_err(|e| TTSError::Synthesis(format!("Task spawn error: {}", e)))?
+}
+
+async fn find_voice_by_name(voice_name: &str) -> Result<Option<VoiceInformation>> {
+    let voice_name = voice_name.to_string();
+    tokio::task::spawn_blocking(move || {
+        let voices = SpeechSynthesizer::AllVoices().map_err(TTSError::Windows)?;
+        let voice_count = voices.Size().map_err(TTSError::Windows)?;
+
+        for i in 0..voice_count {
+            if let Ok(voice) = voices.GetAt(i) {
+                let display_name = voice.DisplayName().map_err(TTSError::Windows)?.to_string();
+                if display_name == voice_name {
+                    return Ok(Some(voice));
+                }
+            }
+        }
+
+        Ok(None)
+    })
+    .await
+    .map_err(|e| TTSError::Synthesis(format!("Task spawn error: {}", e)))?
+}
+
 pub struct TTS;
 
 impl TTS {
@@ -121,6 +193,118 @@ impl TTS {
         player.Play().map_err(TTSError::Windows)?;
 
         Ok(())
+    }
+
+    /// Speak text and wait for completion
+    pub async fn speak_and_wait(text: &str, ignore_can_speak: bool) -> Result<()> {
+        log::info!("{}", text);
+
+        let can_speak_guard = CAN_SPEAK.lock().await;
+        if !*can_speak_guard && !ignore_can_speak {
+            warn!("Cannot speak: speaking is disabled");
+            return Ok(());
+        }
+        drop(can_speak_guard);
+
+        let synthesizer = get_synthesizer().await?;
+        let player = get_player().await?;
+
+        let text_hstring = HSTRING::from(text);
+
+        let stream =
+            await_windows_async(move || synthesizer.SynthesizeTextToStreamAsync(&text_hstring))
+                .await?;
+
+        let content_type = stream.ContentType().map_err(TTSError::Windows)?;
+        let media_source =
+            MediaSource::CreateFromStream(&stream, &content_type).map_err(TTSError::Windows)?;
+
+        player.SetSource(&media_source).map_err(TTSError::Windows)?;
+        player.Play().map_err(TTSError::Windows)?;
+
+        // Wait for playback to complete
+        Self::wait_for_playback_completion(player).await?;
+
+        Ok(())
+    }
+
+    /// Wait for media player to finish playing
+    async fn wait_for_playback_completion(player: &MediaPlayer) -> Result<()> {
+        use windows::Media::Playback::MediaPlaybackState;
+
+        // Poll the player state until it's no longer playing
+        loop {
+            let state = tokio::task::spawn_blocking({
+                let player = player.clone();
+                move || player.PlaybackSession()?.PlaybackState()
+            })
+            .await
+            .map_err(|e| TTSError::Synthesis(format!("Task spawn error: {}", e)))?
+            .map_err(TTSError::Windows)?;
+
+            match state {
+                MediaPlaybackState::Playing => {
+                    // Still playing, wait a bit and check again
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
+                MediaPlaybackState::Paused | MediaPlaybackState::None => {
+                    // Playback finished
+                    break;
+                }
+                _ => {
+                    // Other states, wait a bit and check again
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get a list of all installed TTS voices
+    pub async fn get_available_voices() -> Result<Vec<VoiceInfo>> {
+        get_installed_voices().await
+    }
+
+    /// Set the current TTS voice by name
+    pub async fn set_voice(voice_name: &str) -> Result<bool> {
+        let synthesizer = get_synthesizer().await?;
+
+        if let Ok(Some(voice)) = find_voice_by_name(voice_name).await {
+            synthesizer.SetVoice(&voice).map_err(TTSError::Windows)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Get the current default voice information
+    pub async fn get_default_voice() -> Result<VoiceInfo> {
+        tokio::task::spawn_blocking(|| {
+            let default_voice = SpeechSynthesizer::DefaultVoice().map_err(TTSError::Windows)?;
+            let display_name = default_voice
+                .DisplayName()
+                .map_err(TTSError::Windows)?
+                .to_string();
+            let id = default_voice.Id().map_err(TTSError::Windows)?.to_string();
+            let language = default_voice
+                .Language()
+                .map_err(TTSError::Windows)?
+                .to_string();
+            let gender = match default_voice.Gender().map_err(TTSError::Windows)? {
+                windows::Media::SpeechSynthesis::VoiceGender::Male => "Male".to_string(),
+                windows::Media::SpeechSynthesis::VoiceGender::Female => "Female".to_string(),
+                _ => "Unknown".to_string(),
+            };
+
+            Ok(VoiceInfo {
+                id,
+                display_name,
+                language,
+                gender,
+            })
+        })
+        .await
+        .map_err(|e| TTSError::Synthesis(format!("Task spawn error: {}", e)))?
     }
 
     pub async fn set_can_stop(can_stop: bool) -> Result<()> {

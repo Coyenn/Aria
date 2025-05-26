@@ -154,6 +154,8 @@ name = "aria-cli"
 version = "0.1.0"
 dependencies = [
  "aria-core",
+ "aria-tts",
+ "aria-utils",
  "clap",
  "ctrlc",
  "log",
