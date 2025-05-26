@@ -3,19 +3,18 @@ use tokio::sync::mpsc;
 use aria_core::driver::WindowsDriver;
 use aria_tts::tts::TTS;
 use clap::Parser;
-use log::Level;
 
 /// CLI usage for Aria
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-struct Args {
+pub struct Args {
     #[clap(subcommand)]
-    command: Option<Command>,
+    pub command: Option<Command>,
 }
 
 /// CLI subcommands for Aria.
 #[derive(Parser, Debug)]
-enum Command {
+pub enum Command {
     /// Start Aria
     Start,
     /// List all available TTS voices on the system.
@@ -31,23 +30,7 @@ enum Command {
     },
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-
-    simple_logger::init_with_level(Level::Info)?;
-
-    match args.command {
-        Some(Command::Start) => start_aria().await?,
-        Some(Command::Voices) => list_voices().await?,
-        Some(Command::Speak { text, voice }) => speak_text(&text, voice.as_deref()).await?,
-        _ => start_aria().await?,
-    }
-
-    Ok(())
-}
-
-pub async fn start_aria() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start_aria_cli() -> Result<(), Box<dyn std::error::Error>> {
     let (tx, mut rx) = mpsc::channel(1);
     ctrlc::set_handler(move || {
         let _ = tx.blocking_send(());
@@ -59,7 +42,7 @@ pub async fn start_aria() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn list_voices() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn list_voices() -> Result<(), Box<dyn std::error::Error>> {
     let voices = TTS::get_available_voices().await?;
 
     println!("Available TTS Voices:");
@@ -80,7 +63,7 @@ async fn list_voices() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn speak_text(text: &str, voice: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn speak_text(text: &str, voice: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     // Set voice if specified
     if let Some(voice_name) = voice {
         let success = TTS::set_voice(voice_name).await?;

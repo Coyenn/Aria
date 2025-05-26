@@ -154,28 +154,16 @@ name = "aria"
 version = "0.1.0"
 dependencies = [
  "aria-core",
+ "aria-tts",
+ "aria-utils",
  "chrono",
+ "clap",
  "ctrlc",
  "egui",
  "egui_overlay",
  "image",
  "log",
- "simple_logger 4.3.3",
- "tokio",
- "winresource",
-]
-
-[[package]]
-name = "aria-cli"
-version = "0.1.0"
-dependencies = [
- "aria-core",
- "aria-tts",
- "aria-utils",
- "clap",
- "ctrlc",
- "log",
- "simple_logger 5.0.0",
+ "simple_logger",
  "tokio",
  "winresource",
 ]
@@ -2072,18 +2060,6 @@ name = "simple_logger"
 version = "4.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e7e46c8c90251d47d08b28b8a419ffb4aede0f87c2eea95e17d1d5bacbf3ef1"
-dependencies = [
- "colored",
- "log",
- "time",
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "simple_logger"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c5dfa5e08767553704aa0ffd9d9794d527103c736aba9854773851fd7497eb"
 dependencies = [
  "colored",
  "log",

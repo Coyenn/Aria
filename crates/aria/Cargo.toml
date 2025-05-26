@@ -9,6 +9,8 @@ path = "src/main.rs"
 
 [dependencies]
 aria-core = { path = "../aria-core" }
+aria-tts = { path = "../aria-tts" }
+aria-utils = { path = "../aria-utils" }
 egui = "0.26"
 egui_overlay = "0.8.1"
 tokio = { version = "1", features = ["full"] }
@@ -17,6 +19,7 @@ simple_logger = "4.3.3"
 ctrlc = "3.4.4"
 chrono = "0.4"
 image = "0.24"
+clap = { version = "4.5.20", features = ["derive"] }
 
 [build-dependencies]
 winresource = "0.1.17"

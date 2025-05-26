@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  "crates/aria-cli",
   "crates/aria-tts",
   "crates/aria-utils",
   "crates/aria-core",

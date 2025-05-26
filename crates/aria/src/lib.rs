@@ -1,3 +1,5 @@
+pub mod cli;
+
 use egui::epaint::RectShape;
 use egui::{Context, Rect, Rgba, Shape, Stroke};
 use egui_overlay::egui_render_three_d::ThreeDBackend as DefaultGfxBackend;

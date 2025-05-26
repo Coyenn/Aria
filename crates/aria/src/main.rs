@@ -1,23 +1,37 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use aria::cli::{Args, Command};
 use aria::start_highlight_overlay;
 use aria_core::driver::WindowsDriver;
-#[cfg(debug_assertions)]
+use clap::Parser;
 use log::Level;
 use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(debug_assertions)]
+    // Initialize logger once at the start
     simple_logger::init_with_level(Level::Info)?;
 
-    // Start the GUI application
-    start_aria().await?;
+    // Parse CLI arguments
+    let args = Args::parse();
+
+    // Check if any CLI commands were provided
+    match args.command {
+        Some(Command::Start) => aria::cli::start_aria_cli().await?,
+        Some(Command::Voices) => aria::cli::list_voices().await?,
+        Some(Command::Speak { text, voice }) => {
+            aria::cli::speak_text(&text, voice.as_deref()).await?
+        }
+        None => {
+            // No CLI command provided, start GUI mode
+            start_aria_gui().await?;
+        }
+    }
 
     Ok(())
 }
 
-async fn start_aria() -> Result<(), Box<dyn std::error::Error>> {
+async fn start_aria_gui() -> Result<(), Box<dyn std::error::Error>> {
     // Set up shutdown signal handling for both Ctrl+C and window close
     let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
 
