@@ -5,6 +5,7 @@ use egui_overlay::egui_window_glfw_passthrough::GlfwBackend;
 use egui_overlay::{start, EguiOverlay};
 use image::ImageFormat;
 use std::thread;
+use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone)]
@@ -21,6 +22,7 @@ pub struct FocusHighlighter {
     initialized: bool,
     close_sender: Option<oneshot::Sender<()>>,
     current_monitor: Option<MonitorInfo>,
+    last_update_time: Option<Instant>,
 }
 
 impl FocusHighlighter {
@@ -31,6 +33,7 @@ impl FocusHighlighter {
             initialized: false,
             close_sender: Some(close_sender),
             current_monitor: None,
+            last_update_time: None,
         }
     }
 
@@ -184,6 +187,7 @@ impl EguiOverlay for FocusHighlighter {
         // Handle incoming rectangle updates
         if let Ok(Some(rect)) = self.receiver.try_recv() {
             self.target_rect = Some(rect);
+            self.last_update_time = Some(Instant::now());
 
             // Check if we need to switch monitors
             if let Some(target_monitor) = self.find_monitor_for_rect(glfw_backend, rect) {
@@ -266,8 +270,31 @@ impl EguiOverlay for FocusHighlighter {
             glfw_backend.window.swap_buffers();
         }
 
-        // Always redraw immediately
-        Some((platform_output, std::time::Duration::ZERO))
+        // Limit framerate to reduce CPU usage - 60 FPS should be sufficient for a focus overlay
+        // Only redraw immediately if we have pending rectangle updates
+        let frame_duration = if self.receiver.is_empty() {
+            // No pending updates - use adaptive frame rate based on how long since last update
+            let time_since_update = self
+                .last_update_time
+                .map(|last| last.elapsed())
+                .unwrap_or(std::time::Duration::from_secs(1));
+
+            if time_since_update < std::time::Duration::from_millis(100) {
+                // Recent update - maintain 60 FPS for smooth visual feedback
+                std::time::Duration::from_millis(16)
+            } else if time_since_update < std::time::Duration::from_secs(1) {
+                // Moderately idle - reduce to 30 FPS
+                std::time::Duration::from_millis(33)
+            } else {
+                // Very idle - reduce to 10 FPS to save CPU
+                std::time::Duration::from_millis(100)
+            }
+        } else {
+            // Pending updates available, redraw immediately for responsiveness
+            std::time::Duration::ZERO
+        };
+
+        Some((platform_output, frame_duration))
     }
 }
 
