@@ -264,7 +264,7 @@ impl EguiOverlay for FocusHighlighter {
         } = egui_context.end_frame();
         let meshes = egui_context.tessellate(shapes, pixels_per_point);
         default_gfx_backend.render_egui(meshes, textures_delta, glfw_backend.window_size_logical);
-        // Present
+
         if glfw_backend.is_opengl() {
             use egui_overlay::egui_window_glfw_passthrough::glfw::Context as _;
             glfw_backend.window.swap_buffers();
